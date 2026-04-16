@@ -1,0 +1,31 @@
+1.自定义函数加上esm前缀，如驱动层adc读取函数：esm_drv_adc_read()。
+
+2.框架分层：task->algorithm->bsp->deiver。
+
+3.bsp和driver采用接口双向抽象，bsp文件夹定义bsp__interface.h，
+  bsp_interface.h中按照需要的外设与驱动分别定义操作集ops，硬件
+  配置cfg的结构体。
+
+4.创建bsp_board文件夹（.c/.h）,提供各模块初始化需要的硬件配置
+
+5.bsp_interface.h结构示意如下：
+  // 电机PWM 配置结构体
+  typedef struct {
+    uint32_t timer_num;
+    uint32_t freq_hz;
+    uint8_t phase_u_pin;
+    uint8_t phase_v_pin;
+    uint8_t phase_w_pin;
+  } bsp_pwm_cfg_t;
+  // 电机PWM 操作接口
+  typedef struct {
+    void (*init)(bsp_pwm_cfg_t *cfg);
+    void (*set_duty)(uint8_t phase, float duty);
+    void (*enable)(void);
+    void (*disable)(void);
+  } bsp_pwm_ops_t;
+  // 注册函数
+  void bsp_pwm_register(bsp_pwm_ops_t *ops, bsp_pwm_cfg_t *cfg);
+
+6.句柄实现多实例。
+

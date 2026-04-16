@@ -1,0 +1,18 @@
+{
+  "C_Cpp.intelliSenseEngine": "default",
+  "clangd.path": "d:\\espressif\\ESP-IDF-Tools\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=d:\\desktop\\Code\\ESP-IDF\\it_time_to_run_myFOC\\build"
+  ],
+  "idf.currentSetup": "d:\\espressif\\ESP-IDF-container\\v5.5.1\\esp-idf",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "idf.flashType": "JTAG",
+  "idf.portWin": "COM13"
+}

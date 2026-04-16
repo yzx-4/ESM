@@ -1,0 +1,62 @@
+项目结构与分层约定
+
+1. 总体分层
+- task：只负责任务创建、调度、状态切换、事件收集，不直接做硬件细节。
+- algorithm：只负责控制算法和数学计算，不访问硬件，不直接调用 driver。
+- bsp：只负责板级硬件映射、cfg/ops 抽象、实例注册与查询。
+- driver：只负责 ESP-IDF 外设封装与具体硬件读写。
+
+2. 当前工程的调用方向
+- 启动入口：驱动统一初始化后，再启动 task 层。
+- task -> bsp ops：task 通过 bsp_interface.h 获取 pwm/current_sense/encoder 的 ops，再调用对应能力。
+- driver -> bsp：driver 从 board 获取 cfg，再把自身 ops 注册到 bsp_interface。
+- algorithm -> config：algorithm 只读取配置参数，不碰硬件。
+- task -> algorithm：task 向算法层送入采样值，取回控制输出。
+
+3. 运行时主链路
+- PWM 周期中断触发。
+- 中断里只做轻量通知，不做复杂计算。
+- 启动阶段会先完成三相电流零点校准和编码器零位对齐。
+- foc_ctrl 任务被唤醒后读取相电流、母线电压和编码器角度样本。
+- foc_core 运行一次 10kHz 控制迭代（Clarke/Park -> 电流PI -> 逆Park -> SVPWM）。
+- 结果占空比交回 PWM ops 下发到驱动层。
+
+4. 当前任务分工
+- foc_ctrl：电流环快任务，绑定 PWM 周期通知，跑快速闭环。
+- comm：通信任务，当前为空壳，后续承接 CAN / 串口 / Modbus。
+- motor_state：电机状态汇总任务，当前为空壳，后续承接状态机与运行状态管理。
+- monitor：监控任务，当前为空壳，后续承接运行数据、调参信息、健康信息。
+- safety：安全任务，当前为空壳，后续承接慢速保护和异常处理。
+
+5. 当前 algorithm 分工
+- foc_core：FOC 主流程入口，组织一次电流环计算。
+- current_loop：电流环控制计算的独立位置，当前已放 PI / 限幅 / 抗饱和基础实现。
+- speed_loop：速度环位置，后续放外环速度调节。
+- observer：观测器预留位，当前空壳。
+- svpwm：SVPWM 计算位置，后续统一处理占空比映射。
+
+6. 当前 driver 分工
+- adc：通用 ADC oneshot 采样封装。
+- current_sensor：三相电流采样、零点校准、相电流换算。
+- mcpwm：PWM 定时器、比较器、GPIO 输出、周期回调。
+- encoder：AS5047P SPI 读角度和零点偏移。
+- can：TWAI 通信封装，当前用于预留通信路径。
+
+7. BSP 结构约定
+- board.c：只写板级硬件映射，不写控制逻辑。
+- bsp_interface.h：定义 cfg/ops 和实例号。
+- board 里保存真实引脚、ADC 通道、SPI 端口等静态配置。
+- driver 里把具体外设行为注册到 bsp_interface。
+
+8. 代码阅读顺序建议
+- 先看 .doc/项目需求.txt，确认硬件和功能目标。
+- 再看 .doc/项目结构.txt，确认分层边界和调用方向。
+- 然后看 bsp/board，确认板级引脚和外设映射。
+- 再看 driver，确认外设封装方式。
+- 最后看 algorithm 与 task，确认控制和调度如何串起来。
+
+9. 当前约束
+- 不允许 task 直接调用 driver 层函数。
+- 不允许 algorithm 直接依赖 driver 或 board。
+- 新增功能优先放到合适层，不要把接口向上层随意暴露。
+- 如果某个 task 需要硬件能力，优先补到 bsp_interface 的 ops 中，再由 driver 实现。
