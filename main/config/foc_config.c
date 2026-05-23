@@ -10,18 +10,21 @@ static esm_foc_config_t s_foc_cfg = {
         .lq_h = 0.0f,
     },
     .current_sense = {
-        .phase_gain_v_per_a = 0.05f,
-        .phase_offset_v = {1.65f, 1.65f, 1.65f},
-        .bus_div_ratio = 0.08f,
+        .phase_gain_v_per_a = 0.15f,
+        .phase_offset_raw = 2048U,
+        .enable_etm_trigger = true,
+        .etm_trigger_phase = 0U,
+        .use_adc_continuous = true,
+        .use_adc_etm_ll = false,
     },
     .current_loop = {
         .id_kp = 0.2f,
         .id_ki = 40.0f,
         .iq_kp = 0.2f,
         .iq_ki = 40.0f,
-        .current_limit_a = 5.0f,
-        .id_ref_a = 0.0f,
-        .iq_ref_a = 0.5f,
+        .current_limit_a = 0.01f,
+        .id_ref_a = 0.00f,
+        .iq_ref_a = 0.01f,
     },
     .control = {
         .pwm_hz = 10000,
@@ -48,12 +51,26 @@ esp_err_t esm_cfg_foc_set_motor_params(const esm_motor_params_t *params)
     return ESP_OK;
 }
 
-esp_err_t esm_cfg_foc_set_phase_offset_v(const float offset_v[3])
+esp_err_t esm_cfg_foc_set_phase_offset_raw(uint16_t offset_raw)
 {
-    if (offset_v == NULL) {
+    s_foc_cfg.current_sense.phase_offset_raw = offset_raw;
+    return ESP_OK;
+}
+
+esp_err_t esm_cfg_foc_set_etm_trigger(bool enable, uint8_t phase)
+{
+    if (phase >= 3U) {
         return ESP_ERR_INVALID_ARG;
     }
-    memcpy(s_foc_cfg.current_sense.phase_offset_v, offset_v, sizeof(s_foc_cfg.current_sense.phase_offset_v));
+    s_foc_cfg.current_sense.enable_etm_trigger = enable;
+    s_foc_cfg.current_sense.etm_trigger_phase = phase;
+    return ESP_OK;
+}
+
+esp_err_t esm_cfg_foc_set_adc_options(bool use_continuous, bool use_etm_ll)
+{
+    s_foc_cfg.current_sense.use_adc_continuous = use_continuous;
+    s_foc_cfg.current_sense.use_adc_etm_ll = use_etm_ll;
     return ESP_OK;
 }
 

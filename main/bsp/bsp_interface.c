@@ -53,7 +53,7 @@ const esm_bsp_pwm_cfg_t *esm_bsp_pwm_get_cfg(uint8_t instance_id)
     return &s_pwm_slots[instance_id].cfg;
 }
 
-bsp_status_t esm_bsp_current_sense_register(uint8_t instance_id, const esm_bsp_current_sense_ops_t *ops, const esm_bsp_current_sense_cfg_t *cfg)
+bsp_status_t esm_bsp_current_sense_register(uint8_t instance_id, const esm_bsp_current_sense_ops_t *ops, const esm_bsp_current_sense_cfg_t *cfg)//注册电流传感器实例的操作函数和配置结构体到对应槽位
 {
     if (instance_id >= ESM_BSP_CURRENT_SENSE_MAX_INSTANCE || ops == NULL || cfg == NULL) {
         return BSP_ERR_INVALID_ARG;

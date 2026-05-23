@@ -4,15 +4,15 @@
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=d:\\desktop\\Code\\ESP-IDF\\it_time_to_run_myFOC\\build"
+    "--compile-commands-dir=d:\\desktop\\Code\\ESP-IDF\\ESM_ESC_ESP32\\build"
   ],
   "idf.currentSetup": "d:\\espressif\\ESP-IDF-container\\v5.5.1\\esp-idf",
   "idf.openOcdConfigs": [
-    "board/esp32s3-builtin.cfg"
+    "board/esp32c5-builtin.cfg"
   ],
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "IDF_TARGET": "esp32c5"
   },
   "idf.flashType": "JTAG",
-  "idf.portWin": "COM13"
+  "idf.portWin": "COM6"
 }

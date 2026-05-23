@@ -22,6 +22,20 @@ static void esm_clarke_transform(float ia, float ib, float *i_alpha, float *i_be
     *i_beta = (ia + 2.0f * ib) * ESM_ONE_BY_SQRT3;
 }
 
+static float esm_sample_raw_to_amp(uint16_t raw, const esm_foc_config_t *cfg)
+{
+    float gain = 0.15f;
+    float delta = (float)raw;
+
+    if (cfg != NULL) {
+        if (cfg->current_sense.phase_gain_v_per_a > 1e-6f) {
+            gain = cfg->current_sense.phase_gain_v_per_a;
+        }
+        delta -= (float)cfg->current_sense.phase_offset_raw;
+    }
+    return (delta * 3.3f / 4095.0f) / gain;
+}
+
 static void esm_park_transform(float i_alpha, float i_beta, float theta, float *id, float *iq)
 {
     float c = cosf(theta);
@@ -108,7 +122,9 @@ esp_err_t esm_algo_foc_run_10khz(const esm_foc_sample_t *sample, esm_foc_pwm_cmd
     bus_v = sample->bus_v > 1.0f ? sample->bus_v : bus_v;
     v_limit = bus_v * ESM_ONE_BY_SQRT3 * cfg->control.max_modulation;
 
-    esm_clarke_transform(sample->ia, sample->ib, &i_alpha, &i_beta);
+    const float ia = esm_sample_raw_to_amp(sample->raw_ia, cfg);
+    const float ib = esm_sample_raw_to_amp(sample->raw_ib, cfg);
+    esm_clarke_transform(ia, ib, &i_alpha, &i_beta);
     esm_park_transform(i_alpha, i_beta, theta, &id, &iq);
 
     loop_in.id_ref = cfg->current_loop.id_ref_a;

@@ -3,9 +3,9 @@
 #include "esp_err.h"
 
 typedef struct {
-	float ia;
-	float ib;
-	float ic;
+	uint16_t raw_ia;
+	uint16_t raw_ib;
+	uint16_t raw_ic;
 	float bus_v;
 	float elec_angle_rad;
 } esm_foc_sample_t;

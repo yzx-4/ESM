@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "esp_err.h"
@@ -13,8 +14,11 @@ typedef struct {//电机参数包含极对数、定子电阻和d轴、q轴电感
 
 typedef struct {//电流传感器参数包含增益、偏置和总线电压分压比等，用于将ADC读数转换成实际的电流和电压值
     float phase_gain_v_per_a;
-    float phase_offset_v[3];
-    float bus_div_ratio;
+    uint16_t phase_offset_raw;
+    bool enable_etm_trigger;
+    uint8_t etm_trigger_phase;
+    bool use_adc_continuous;
+    bool use_adc_etm_ll;
 } esm_current_sense_params_t;
 
 typedef struct {//FOC算法的配置参数，包含电机参数、电流传感器参数、当前环参数和控制参数
@@ -46,5 +50,7 @@ typedef struct {
 
 const esm_foc_config_t *esm_cfg_foc_get(void);
 esp_err_t esm_cfg_foc_set_motor_params(const esm_motor_params_t *params);
-esp_err_t esm_cfg_foc_set_phase_offset_v(const float offset_v[3]);
+esp_err_t esm_cfg_foc_set_phase_offset_raw(uint16_t offset_raw);
+esp_err_t esm_cfg_foc_set_etm_trigger(bool enable, uint8_t phase);
+esp_err_t esm_cfg_foc_set_adc_options(bool use_continuous, bool use_etm_ll);
 esp_err_t esm_cfg_foc_set_current_loop_params(const esm_current_loop_params_t *params);
