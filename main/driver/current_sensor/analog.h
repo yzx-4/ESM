@@ -1,12 +1,12 @@
 /* Analog driver: phase-current calibration and raw current output. */
 #pragma once
 
+#include <stdint.h>
+
 #include "esp_err.h"
+#include "bsp/bsp_require_drv_hal.h"
 
-esp_err_t esm_drv_analog_init(void);
-
-/* Optional: setup ETM-based trigger for ADC sampling. If the platform/IDF
-	provides esp_etm or equivalent, implement this to connect MCPWM events to
-	ADC tasks. Returns ESP_OK if set (or no-op), ESP_ERR_NOT_SUPPORTED if not
-	available. */
-esp_err_t esm_drv_analog_setup_etm_trigger(void);
+/* Driver API (implementation of current-sensing): */
+esp_err_t esm_drv_analog_init(const esm_drv_current_cfg_t *cfg);
+esp_err_t esm_drv_analog_read_latest_sample(esm_drv_phase_current_t *current);
+esp_err_t esm_drv_analog_read_slow_raw(esm_drv_analog_slow_channel_id_t slow_channel_id, uint16_t *raw);

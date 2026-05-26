@@ -2,7 +2,8 @@
 
 #include <math.h>
 
-#include "bsp/bsp_interface.h"
+#include "bsp/bsp_hal.h"
+#include "bsp/encoder/bsp_encoder.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -61,29 +62,26 @@ static float esm_monitor_clamp01(float x)
     return x;
 }
 
-static void esm_monitor_set_neutral(const esm_bsp_pwm_ops_t *pwm_ops)
+static void esm_monitor_set_neutral(void)
 {
-    if (pwm_ops == NULL || pwm_ops->set_duty == NULL) {
-        return;
-    }
-    (void)pwm_ops->set_duty(0, 0.5f);
-    (void)pwm_ops->set_duty(1, 0.5f);
-    (void)pwm_ops->set_duty(2, 0.5f);
+    (void)esm_bsp_pwm_set_duty(0, 0.5f);
+    (void)esm_bsp_pwm_set_duty(1, 0.5f);
+    (void)esm_bsp_pwm_set_duty(2, 0.5f);
 }
 
 #endif
 
 #if ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_PHASE_DUTY
-static void esm_monitor_run_phase_duty_test(const esm_bsp_pwm_ops_t *pwm_ops)
+static void esm_monitor_run_phase_duty_test(void)
 {
     ESP_LOGW(TAG,
              "phase duty test active: U=%.2f V=%.2f W=%.2f",
              (double)ESM_MONITOR_PHASE_DUTY_U,
              (double)ESM_MONITOR_PHASE_DUTY_V,
              (double)ESM_MONITOR_PHASE_DUTY_W);
-    (void)pwm_ops->set_duty(0, ESM_MONITOR_PHASE_DUTY_U);
-    (void)pwm_ops->set_duty(1, ESM_MONITOR_PHASE_DUTY_V);
-    (void)pwm_ops->set_duty(2, ESM_MONITOR_PHASE_DUTY_W);
+    (void)esm_bsp_pwm_set_duty(0, ESM_MONITOR_PHASE_DUTY_U);
+    (void)esm_bsp_pwm_set_duty(1, ESM_MONITOR_PHASE_DUTY_V);
+    (void)esm_bsp_pwm_set_duty(2, ESM_MONITOR_PHASE_DUTY_W);
 
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -92,8 +90,7 @@ static void esm_monitor_run_phase_duty_test(const esm_bsp_pwm_ops_t *pwm_ops)
 #endif
 
 #if ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_OPEN_LOOP_VECTOR
-static void esm_monitor_run_open_loop_vector_continuous(const esm_bsp_pwm_ops_t *pwm_ops,
-                                                        const esm_bsp_encoder_ops_t *enc_ops)
+static void esm_monitor_run_open_loop_vector_continuous(void)
 {
     const float dt_s = (float)ESM_MONITOR_VECTOR_STEP_MS / 1000.0f;
     const float omega_e = ESM_MONITOR_TWO_PI * ESM_MONITOR_VECTOR_ELEC_HZ;
@@ -108,7 +105,7 @@ static void esm_monitor_run_open_loop_vector_continuous(const esm_bsp_pwm_ops_t 
              (double)ESM_MONITOR_VECTOR_MODULATION,
              (double)ESM_MONITOR_VECTOR_ELEC_HZ);
 
-    esm_monitor_set_neutral(pwm_ops);
+    esm_monitor_set_neutral();
     while (1) {
         float du;
         float dv;
@@ -121,11 +118,11 @@ static void esm_monitor_run_open_loop_vector_continuous(const esm_bsp_pwm_ops_t 
         dv = 0.5f + ESM_MONITOR_VECTOR_MODULATION * sinf(theta_e - 2.09439510239f);
         dw = 0.5f + ESM_MONITOR_VECTOR_MODULATION * sinf(theta_e + 2.09439510239f);
 
-        (void)pwm_ops->set_duty(0, esm_monitor_clamp01(du));
-        (void)pwm_ops->set_duty(1, esm_monitor_clamp01(dv));
-        (void)pwm_ops->set_duty(2, esm_monitor_clamp01(dw));
+        (void)esm_bsp_pwm_set_duty(0, esm_monitor_clamp01(du));
+        (void)esm_bsp_pwm_set_duty(1, esm_monitor_clamp01(dv));
+        (void)esm_bsp_pwm_set_duty(2, esm_monitor_clamp01(dw));
 
-        if (enc_ops != NULL && enc_ops->read_angle_rad != NULL && enc_ops->read_angle_rad(&mech) == BSP_OK) {
+        if (esm_bsp_encoder_read_angle_rad(&mech) == ESP_OK) {
             if (!have_prev) {
                 prev_mech = mech;
                 have_prev = true;
@@ -149,24 +146,13 @@ static void esm_monitor_run_open_loop_vector_continuous(const esm_bsp_pwm_ops_t 
 
 static void esm_task_monitor_entry(void *arg)
 {
-    const esm_bsp_pwm_ops_t *pwm_ops = esm_bsp_pwm_get_ops(ESM_MONITOR_PWM_INSTANCE);
-#if ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_OPEN_LOOP_VECTOR
-    const esm_bsp_encoder_ops_t *enc_ops = esm_bsp_encoder_get_ops(ESM_MONITOR_ENCODER_INSTANCE);
-#endif
-
     (void)arg;
 
     if (ESM_MONITOR_TEST_MODE != ESM_MONITOR_TEST_MODE_NONE) {
-        if (pwm_ops == NULL || pwm_ops->set_duty == NULL) {
-            ESP_LOGE(TAG, "test mode enabled but pwm ops unavailable");
-            vTaskDelete(NULL);
-            return;
-        }
-
 #if ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_PHASE_DUTY
-        esm_monitor_run_phase_duty_test(pwm_ops);
+        esm_monitor_run_phase_duty_test();
 #elif ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_OPEN_LOOP_VECTOR
-    esm_monitor_run_open_loop_vector_continuous(pwm_ops, enc_ops);
+        esm_monitor_run_open_loop_vector_continuous();
 #else
         ESP_LOGW(TAG, "unknown monitor test mode=%d", ESM_MONITOR_TEST_MODE);
 #endif

@@ -72,6 +72,75 @@ static float esm_normalize_angle(float angle_rad)  //将角度归一化到0~2PI�
     return angle_rad;
 }
 
+esp_err_t esm_algo_foc_mech_to_elec_angle(float mech_angle_rad, uint8_t pole_pairs, float *elec_angle_rad)
+{
+    if (elec_angle_rad == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    *elec_angle_rad = esm_normalize_angle(mech_angle_rad * (float)pole_pairs);
+    return ESP_OK;
+}
+
+esp_err_t esm_algo_foc_apply_pwm_cmd(const esm_foc_pwm_cmd_t *cmd, esm_algo_foc_pwm_apply_fn_t apply_fn, void *user_ctx)
+{
+    if (cmd == NULL || apply_fn == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    return apply_fn(user_ctx, cmd);
+}
+
+esp_err_t esm_algo_foc_align_encoder_zero(const esm_algo_foc_encoder_align_cfg_t *cfg,
+    esm_algo_foc_pwm_apply_fn_t pwm_apply_fn,
+    void *pwm_apply_ctx,
+    esm_algo_foc_encoder_read_fn_t encoder_read_fn,
+    void *encoder_read_ctx,
+    esm_algo_foc_encoder_set_zero_fn_t encoder_set_zero_fn,
+    void *encoder_set_zero_ctx,
+    esm_algo_foc_delay_ms_fn_t delay_fn,
+    void *delay_ctx)
+{
+    esm_foc_pwm_cmd_t align_cmd = {0};
+    float angle_rad = 0.0f;
+    uint32_t retry = 0;
+
+    if (cfg == NULL || pwm_apply_fn == NULL || encoder_read_fn == NULL || encoder_set_zero_fn == NULL || delay_fn == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    align_cmd.duty_a = cfg->align_duty_a;
+    align_cmd.duty_b = cfg->align_duty_b;
+    align_cmd.duty_c = cfg->align_duty_c;
+    if (esm_algo_foc_apply_pwm_cmd(&align_cmd, pwm_apply_fn, pwm_apply_ctx) != ESP_OK) {
+        return ESP_FAIL;
+    }
+    delay_fn(delay_ctx, cfg->hold_ms);
+
+    for (retry = 0; retry < cfg->retry_count; retry++) {
+        if (encoder_read_fn(encoder_read_ctx, &angle_rad) == ESP_OK) {
+            if (encoder_set_zero_fn(encoder_set_zero_ctx, angle_rad) != ESP_OK) {
+                return ESP_FAIL;
+            }
+            align_cmd.duty_a = cfg->zero_duty_a;
+            align_cmd.duty_b = cfg->zero_duty_b;
+            align_cmd.duty_c = cfg->zero_duty_c;
+            if (esm_algo_foc_apply_pwm_cmd(&align_cmd, pwm_apply_fn, pwm_apply_ctx) != ESP_OK) {
+                return ESP_FAIL;
+            }
+            delay_fn(delay_ctx, cfg->settle_ms);
+            return ESP_OK;
+        }
+        delay_fn(delay_ctx, cfg->retry_delay_ms);
+    }
+
+    align_cmd.duty_a = cfg->zero_duty_a;
+    align_cmd.duty_b = cfg->zero_duty_b;
+    align_cmd.duty_c = cfg->zero_duty_c;
+    (void)esm_algo_foc_apply_pwm_cmd(&align_cmd, pwm_apply_fn, pwm_apply_ctx);
+    return ESP_FAIL;
+}
+
 esp_err_t esm_algo_foc_set_current_ref(float id_ref_a, float iq_ref_a)//设置FOC算法的电流参考值，单位是安培
 {
     esm_current_loop_params_t params = {0};

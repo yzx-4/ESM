@@ -3,7 +3,6 @@
 
 #include "algorithm/algorithm.h"
 #include "bsp/bsp.h"
-#include "driver/driver.h"
 #include "task/task_layer.h"
 
 static const char *TAG = "app_main";
@@ -16,10 +15,6 @@ void app_main(void)
         return;
     }
 
-	if (esm_drv_init() != ESP_OK) {
-		ESP_LOGE(TAG, "driver init failed");
-		return;
-	}
 	if (esm_algo_init() != ESP_OK) {
 		ESP_LOGE(TAG, "algorithm init failed");
 		return;

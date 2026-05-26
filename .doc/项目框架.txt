@@ -1,31 +1,55 @@
-1.自定义函数加上esm前缀，如驱动层adc读取函数：esm_drv_adc_read()。
+项目框架与分层说明
 
-2.框架分层：task->algorithm->bsp->deiver。
+1. 命名规则
+- 所有自定义函数统一加 `esm_` 前缀。
+- `bsp` 层暴露的能力函数统一使用 `esm_bsp_` 前缀。
+- `driver` 层暴露的底层封装函数统一使用 `esm_drv_` 前缀。
 
-3.bsp和driver采用接口双向抽象，bsp文件夹定义bsp__interface.h，
-  bsp_interface.h中按照需要的外设与驱动分别定义操作集ops，硬件
-  配置cfg的结构体。
+2. 总体分层
+- `task`：只负责任务创建、调度、状态切换、事件收集，不直接处理硬件细节。
+- `algorithm`：只负责控制算法和数学计算，不访问硬件，不直接依赖 `driver`。
+- `bsp`：只负责板级硬件抽象、板级配置、对外能力接口组织，不直接暴露具体外设实现细节。
+- `driver`：只负责 ESP-IDF 外设封装与具体硬件读写。
 
-4.创建bsp_board文件夹（.c/.h）,提供各模块初始化需要的硬件配置
+3. 分层调用方向
+- `task -> bsp`：任务层只调用 `bsp` 提供的能力函数，不直接调用 `driver`。
+- `task -> algorithm`：任务层向算法层传入采样值，取回控制输出。
+- `bsp -> driver`：`bsp` 调用 `driver` 提供的底层外设能力。
+- `board -> bsp`：板级文件只提供静态硬件配置，不承载控制逻辑。
 
-5.bsp_interface.h结构示意如下：
-  // 电机PWM 配置结构体
-  typedef struct {
-    uint32_t timer_num;
-    uint32_t freq_hz;
-    uint8_t phase_u_pin;
-    uint8_t phase_v_pin;
-    uint8_t phase_w_pin;
-  } bsp_pwm_cfg_t;
-  // 电机PWM 操作接口
-  typedef struct {
-    void (*init)(bsp_pwm_cfg_t *cfg);
-    void (*set_duty)(uint8_t phase, float duty);
-    void (*enable)(void);
-    void (*disable)(void);
-  } bsp_pwm_ops_t;
-  // 注册函数
-  void bsp_pwm_register(bsp_pwm_ops_t *ops, bsp_pwm_cfg_t *cfg);
+4. 接口组织方式
+- 取消函数指针注册机制，不再使用 `ops/cfg/register/get` 这种通用抽象。
+- `bsp` 层直接定义本工程需要的能力接口，函数名保持清晰直观。
+- 如果某个能力需要参数，优先通过结构体参数表达，而不是把逻辑拆成过多中间层。
+- 由于当前工程只启用单一配置，不设计运行中切换实现，也不追求过度通用化。
 
-6.句柄实现多实例。
+5. 推荐目录职责
+- `main/task`：任务入口、状态管理、消息收发。
+- `main/algorithm`：FOC、电流环、速度环、观测器、SVPWM 等控制逻辑。
+- `main/bsp`：板级配置、板级能力接口、对外统一调用入口。
+- `main/driver`：SPI、ADC、PWM、CAN 等底层硬件封装。
+
+6. 板级配置方式
+- `main/bsp/board` 只保存板级静态配置，例如引脚、SPI 端口、ADC 通道、PWM 定时器等。
+- `board` 不写控制逻辑，也不直接实现外设协议。
+- `bsp` 通过板级配置完成初始化，并向上层提供统一能力接口。
+
+7. 当前实现约定
+- SPI 这类纯底层功能先放到 `driver`，例如 SPI 初始化和发送。
+- 具体编码器协议放到 `bsp`，例如读取哪个寄存器、校验规则、零点偏移处理。
+- 读编码器等业务接口由 `bsp` 对外提供，任务层只调用 `bsp` 接口。
+- 如果后续新增别的编码器型号，优先在 `bsp` 层通过少量开关宏切换参数，而不是重新设计一套通用插件机制。
+
+8. 代码阅读顺序建议
+- 先看 `项目需求.txt`，确认硬件和功能目标。
+- 再看本文件，确认分层边界和调用方向。
+- 然后看 `main/bsp/board`，确认板级引脚和外设映射。
+- 再看 `main/driver`，确认底层外设封装方式。
+- 最后看 `main/bsp` 与 `main/task`，确认控制和调度如何串起来。
+
+9. 当前约束
+- 不允许 `task` 直接调用 `driver` 层函数。
+- `algorithm` 不直接依赖 `driver` 或 `board`。
+- 新增功能优先放到合适层，不要把接口向上层随意暴露。
+- 这个工程以代码简洁、易读、易改为优先，不追求为了未来可能性而提前复杂化。
 

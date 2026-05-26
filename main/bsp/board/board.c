@@ -5,40 +5,34 @@
 
 #include <stddef.h>
 /*pwm参数，引脚*/
-static const esm_bsp_pwm_cfg_t s_pwm_cfg_table[ESM_BSP_PWM_MAX_INSTANCE] = {
-    {
-        .timer_num = 0,
-        .freq_hz = 10000,
-        .phase_u_high_pin = 27,
-        .phase_u_low_pin = 23,
-        .phase_v_high_pin = 4,
-        .phase_v_low_pin = 24,
-        .phase_w_high_pin = 5,
-        .phase_w_low_pin = 12,
-        .deadtime_ns = 250,
-    },
+static const esm_bsp_pwm_cfg_t s_pwm_cfg = {
+    .timer_num = 0,
+    .freq_hz = 10000,
+    .phase_u_high_pin = 27,
+    .phase_u_low_pin = 23,
+    .phase_v_high_pin = 4,
+    .phase_v_low_pin = 24,
+    .phase_w_high_pin = 5,
+    .phase_w_low_pin = 12,
+    .deadtime_ns = 250,
 };
 /**/
-static const esm_bsp_current_sense_cfg_t s_current_sense_cfg_table[ESM_BSP_CURRENT_SENSE_MAX_INSTANCE] = {
-    {
-        .fast_phase_index = {0, 1, 0},
-        .fast_adc_unit = {1, 1, 0},
-        .fast_adc_channel = {5, 0, 0},
-        .etm_trigger_phase = 0,
-        .slow_channel_count = 0,
-    },
+static const esm_bsp_current_sense_cfg_t s_current_sense_cfg = {
+    .fast_phase_index = {0, 1, 0},
+    .fast_adc_unit = {1, 1, 0},
+    .fast_adc_channel = {5, 0, 0},
+    .etm_trigger_phase = 0,
+    .slow_channel_count = 0,
 };
 
-static const esm_bsp_encoder_cfg_t s_encoder_cfg_table[ESM_BSP_ENCODER_MAX_INSTANCE] = {
-    {
-        .spi_host = 2,
-        .mosi_pin = 7,
-        .miso_pin = 8,
-        .sclk_pin = 9,
-        .cs_pin = 10,
-        .clock_hz = 1000000,
-        .spi_mode = 3,//工程实测as5047用mode3，可以读到10M，就是唯一正确的模式！！！
-    },
+static const esm_bsp_encoder_cfg_t s_encoder_cfg = {
+    .spi_host = 2,
+    .mosi_pin = 7,
+    .miso_pin = 8,
+    .sclk_pin = 9,
+    .cs_pin = 10,
+    .clock_hz = 1000000,
+    .spi_mode = 3,//工程实测as5047用mode3，可以读到10M，就是唯一正确的模式！！！
 };
 
 static const struct {
@@ -62,26 +56,17 @@ bsp_status_t esm_bsp_board_init(void)
     return BSP_OK;
 }
 
-const esm_bsp_pwm_cfg_t *esm_bsp_board_get_pwm_cfg(uint8_t instance_id)//根据实例id返回对应的pwm配置结构体指针，如果id非法返回NULL
+const esm_bsp_pwm_cfg_t *esm_bsp_board_get_pwm_cfg(void)
 {
-    if (instance_id >= ESM_BSP_PWM_MAX_INSTANCE) {
-        return NULL;
-    }
-    return &s_pwm_cfg_table[instance_id];
+    return &s_pwm_cfg;
 }
 
-const esm_bsp_current_sense_cfg_t *esm_bsp_board_get_current_sense_cfg(uint8_t instance_id)//根据实例id返回对应的电流传感配置结构体指针，如果id非法返回NULL
+const esm_bsp_current_sense_cfg_t *esm_bsp_board_get_current_sense_cfg(void)
 {
-    if (instance_id >= ESM_BSP_CURRENT_SENSE_MAX_INSTANCE) {
-        return NULL;
-    }
-    return &s_current_sense_cfg_table[instance_id];
+    return &s_current_sense_cfg;
 }
 
-const esm_bsp_encoder_cfg_t *esm_bsp_board_get_encoder_cfg(uint8_t instance_id)//根据实例id返回对应的编码器配置结构体指针，如果id非法返回NULL
+const esm_bsp_encoder_cfg_t *esm_bsp_board_get_encoder_cfg(void)
 {
-    if (instance_id >= ESM_BSP_ENCODER_MAX_INSTANCE) {
-        return NULL;
-    }
-    return &s_encoder_cfg_table[instance_id];
+    return &s_encoder_cfg;
 }

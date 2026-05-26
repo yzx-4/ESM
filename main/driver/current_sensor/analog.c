@@ -4,11 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "bsp/board/board.h"
-#include "bsp/bsp_interface.h"
 #include "esp_err.h"
 #include "esp_log.h"
 #include "esp_etm.h"
+#include "bsp/board/board.h"
 #include "config/foc_config.h"
 #include "driver/mcpwm/driver_mcpwm.h"
 #include "driver/mcpwm_etm.h"
@@ -31,6 +30,7 @@ static esp_etm_task_handle_t s_adc_etm_task = NULL;                  //ADC ETM�
 static volatile uint16_t s_latest_raw_ia = 0U;                       //最新电流12位数据
 static volatile uint16_t s_latest_raw_ib = 0U;
 static volatile bool s_latest_sample_valid = false;                  //最新采样数据是否有效，只有当s_latest_raw_ia和s_latest_raw_ib都被更新过了才会被置为true
+static bool s_initialized = false;
 /*连续ADC转换完成事件回调函数，FOC控制任务注册这个回调后，每当连续ADC转换完成一次，
 FOC控制任务就会被通知一次，回调函数会从事件数据中解析出电流采样的原始值，并更新全局
 变量s_latest_raw_ia和s_latest_raw_ib，以及标志位s_latest_sample_valid*/
@@ -72,11 +72,67 @@ static bool esm_drv_analog_on_continuous_conv_done(adc_continuous_handle_t handl
 
     return false;
 }
-/* 初始化函数，配置连续ADC和ETM触发，成功返回BSP_OK */
-static bsp_status_t esm_drv_analog_ops_init(const esm_bsp_current_sense_cfg_t *cfg)
+static esp_err_t esm_drv_analog_setup_etm_trigger(const esm_drv_current_cfg_t *cfg)
+{
+#if CONFIG_IDF_TARGET_ESP32C5
+    esp_err_t err;
+    mcpwm_cmpr_handle_t cmpr = NULL;
+
+    if (s_etm_trigger_ready) {
+        return ESP_OK;
+    }
+
+    /* 固定使用相位 U 比较器作为中心点触发源。 */
+    err = esm_drv_mcpwm_get_comparator_handle(cfg->etm_trigger_phase, &cmpr);
+    if (err != ESP_OK || cmpr == NULL) {
+        return ESP_ERR_NOT_SUPPORTED;
+    }
+
+    mcpwm_cmpr_etm_event_config_t etm_event_cfg = {
+        .event_type = MCPWM_CMPR_ETM_EVENT_EQUAL,
+    };
+    err = mcpwm_comparator_new_etm_event(cmpr, &etm_event_cfg, &s_mcpwm_etm_event);
+    if (err != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    esp_etm_channel_config_t etm_chan_cfg = {
+        .flags = {
+            .allow_pd = 0,
+        },
+    };
+    err = esp_etm_new_channel(&etm_chan_cfg, &s_etm_chan);
+    if (err != ESP_OK) {
+        return ESP_FAIL;
+    }
+    err = esm_drv_adc_etm_new_start_task(&s_adc_etm_task);
+    if (err != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    err = esp_etm_channel_connect(s_etm_chan, s_mcpwm_etm_event, s_adc_etm_task);
+    if (err != ESP_OK) {
+        return ESP_FAIL;
+    }
+    err = esp_etm_channel_enable(s_etm_chan);
+    if (err != ESP_OK) {
+        return ESP_FAIL;
+    }
+
+    s_etm_trigger_ready = true;
+    return ESP_OK;
+#else
+    (void)cfg;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/* 初始化函数，配置连续ADC和ETM触发，成功返回ESP_OK */
+esp_err_t esm_drv_analog_init(const esm_drv_current_cfg_t *drv_cfg)
 {
     esp_err_t err;
     const esm_foc_config_t *foc_cfg;
+    const esm_drv_current_cfg_t *cfg = drv_cfg;
     adc_continuous_handle_cfg_t handle_cfg;
     adc_continuous_evt_cbs_t evt_cbs = {
         .on_conv_done = esm_drv_analog_on_continuous_conv_done,//注册到硬件，当连续ADC转换完成时会调用这个回调函数
@@ -84,35 +140,35 @@ static bsp_status_t esm_drv_analog_ops_init(const esm_bsp_current_sense_cfg_t *c
     };
 
     if (cfg == NULL) {
-        ESP_LOGE(TAG, "ops_init invalid arg: cfg is NULL");
-        return BSP_ERR_INVALID_ARG;
+        ESP_LOGE(TAG, "driver current sense cfg not provided");
+        return ESP_ERR_INVALID_ARG;
     }
     foc_cfg = esm_cfg_foc_get();
     if (foc_cfg == NULL || !foc_cfg->current_sense.use_adc_continuous) {
         ESP_LOGE(TAG, "continuous ADC mode must be enabled by config");
-        return BSP_ERR_FAIL;
+        return ESP_FAIL;
     }
     if (cfg->fast_adc_unit[0] != 1U || cfg->fast_adc_unit[1] != 1U) {
         ESP_LOGE(TAG, "fast ADC must use ADC1 only");
-        return BSP_ERR_INVALID_ARG;
+        return ESP_ERR_INVALID_ARG;
     }
     if (cfg->fast_adc_channel[0] >= 10U || cfg->fast_adc_channel[1] >= 10U) {
         ESP_LOGE(TAG, "fast ADC channel out of range: ch0=%u ch1=%u",
                  (unsigned)cfg->fast_adc_channel[0],
                  (unsigned)cfg->fast_adc_channel[1]);
-        return BSP_ERR_INVALID_ARG;
+        return ESP_ERR_INVALID_ARG;
     }
     if (cfg->slow_channel_count != 0U) {
         ESP_LOGW(TAG, "slow ADC disabled on C5, ignoring configured slow channels");
     }
     if (cfg->etm_trigger_phase >= ESM_BSP_ANALOG_FAST_PHASE_COUNT) {
         ESP_LOGE(TAG, "ETM trigger phase out of range: %u", (unsigned)cfg->etm_trigger_phase);
-        return BSP_ERR_INVALID_ARG;
+        return ESP_ERR_INVALID_ARG;
     }
     for (size_t i = 0; i < ESM_BSP_ANALOG_FAST_PHASE_COUNT; i++) {
         if (cfg->fast_phase_index[i] >= ESM_BSP_ANALOG_FAST_PHASE_COUNT) {
             ESP_LOGE(TAG, "fast phase index out of range: %u", (unsigned)cfg->fast_phase_index[i]);
-            return BSP_ERR_INVALID_ARG;
+            return ESP_ERR_INVALID_ARG;
         }
     }
 
@@ -127,7 +183,7 @@ static bsp_status_t esm_drv_analog_ops_init(const esm_bsp_current_sense_cfg_t *c
         err = adc_continuous_new_handle(&handle_cfg, &s_adc_cont);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "adc_continuous_new_handle failed: %s", esp_err_to_name(err));
-            return BSP_ERR_FAIL;
+            return err;
         }
     }
 
@@ -150,78 +206,19 @@ static bsp_status_t esm_drv_analog_ops_init(const esm_bsp_current_sense_cfg_t *c
         err = adc_continuous_config(s_adc_cont, &cont_cfg);//idf的连续触发初始化函数
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "adc_continuous_config failed: %s", esp_err_to_name(err));
-            return BSP_ERR_FAIL;
+            return err;
         }
     }
 
     err = adc_continuous_register_event_callbacks(s_adc_cont, &evt_cbs, NULL);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "adc_continuous_register_event_callbacks failed: %s", esp_err_to_name(err));
-        return BSP_ERR_FAIL;
+        return err;
     }
 
-    return BSP_OK;
-}
-
-static bsp_status_t esm_drv_analog_ops_trigger_fast_sample(esm_bsp_phase_current_t *current)//这只是检查最新的采样数据是否有效，并把它保存到current指向的结构体里，真正的触发是ETM触发ADC采样
-{
-    if (current == NULL) {
-        return BSP_ERR_INVALID_ARG;
-    }
-
-    if (!s_latest_sample_valid) {
-        return BSP_ERR_FAIL;
-    }
-
-    current->raw_ia = s_latest_raw_ia;
-    current->raw_ib = s_latest_raw_ib;
-    current->raw_ic = 0U;
-    s_latest_sample_valid = false;
-    return BSP_OK;
-}
-
-static bsp_status_t esm_drv_analog_ops_read_slow_raw(esm_bsp_analog_slow_channel_id_t slow_channel_id, uint16_t *raw)//阻塞式oneshot读取，C5不用,占位
-{
-    (void)slow_channel_id;
-    (void)raw;
-    return BSP_ERR_FAIL;
-}
-
-esp_err_t esm_drv_analog_init(void)//初始化读电流需要的资源，注册到上层
-{
-    bsp_status_t bsp_ret;
-    static const esm_bsp_current_sense_ops_t ops = {
-        .init = esm_drv_analog_ops_init,
-        .trigger_fast_sample = esm_drv_analog_ops_trigger_fast_sample,
-        .read_slow_raw = esm_drv_analog_ops_read_slow_raw,
-    };
-    const esm_bsp_current_sense_cfg_t *cfg_hw = esm_bsp_board_get_current_sense_cfg(ESM_CURRENT_SENSOR_INSTANCE);
-
-    if (cfg_hw == NULL) {
-        ESP_LOGE(TAG, "board current sense cfg not found");
-        return ESP_ERR_NOT_FOUND;
-    }
-    bsp_ret = esm_bsp_current_sense_register(ESM_CURRENT_SENSOR_INSTANCE, &ops, cfg_hw);
-    if (bsp_ret != BSP_OK) {
-        ESP_LOGE(TAG, "bsp current sense register failed: %d", (int)bsp_ret);
-        return ESP_FAIL;
-    }
-    if (ops.init != NULL) {
-        bsp_ret = ops.init(cfg_hw);
-        if (bsp_ret != BSP_OK) {
-            ESP_LOGE(TAG, "current sense ops.init failed: %d", (int)bsp_ret);
-            return ESP_FAIL;
-        }
-    }
-
-    if (esm_cfg_foc_get() == NULL || !esm_cfg_foc_get()->current_sense.enable_etm_trigger) {
-        ESP_LOGE(TAG, "ETM trigger must be enabled for continuous ADC path");
-        return ESP_ERR_INVALID_STATE;
-    }
-
-    esp_err_t err = esm_drv_analog_setup_etm_trigger();
+    err = esm_drv_analog_setup_etm_trigger(cfg);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "ETM trigger setup failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "setup etm trigger failed: %s", esp_err_to_name(err));
         return err;
     }
 
@@ -231,65 +228,32 @@ esp_err_t esm_drv_analog_init(void)//初始化读电流需要的资源，注册�
         return err;
     }
 
-    ESP_LOGI(TAG, "analog init ok");
+    s_initialized = true;
+
     return ESP_OK;
 }
 
-esp_err_t esm_drv_analog_setup_etm_trigger(void)//配置ETM触发，成功返回ESP_OK
+esp_err_t esm_drv_analog_read_latest_sample(esm_drv_phase_current_t *current)
 {
-#if CONFIG_IDF_TARGET_ESP32C5
-    esp_err_t err;
-    mcpwm_cmpr_handle_t cmpr = NULL;
-
-    if (s_etm_trigger_ready) {
-        return ESP_OK;
+    if (current == NULL) {
+        return ESP_ERR_INVALID_ARG;
     }
 
-    /* 固定使用相位 U 比较器作为中心点触发源。 */
-    const esm_bsp_current_sense_cfg_t *cfg_hw = esm_bsp_board_get_current_sense_cfg(ESM_CURRENT_SENSOR_INSTANCE);
-    if (cfg_hw == NULL) {
-        return ESP_ERR_NOT_FOUND;
+    if (!s_initialized || !s_latest_sample_valid) {
+        return ESP_FAIL;
     }
 
-    err = esm_drv_mcpwm_get_comparator_handle(cfg_hw->etm_trigger_phase, &cmpr);
-    if (err != ESP_OK || cmpr == NULL) {
-        return ESP_ERR_NOT_SUPPORTED;
-    }
-
-    mcpwm_cmpr_etm_event_config_t etm_event_cfg = {
-        .event_type = MCPWM_CMPR_ETM_EVENT_EQUAL,
-    };
-    err = mcpwm_comparator_new_etm_event(cmpr, &etm_event_cfg, &s_mcpwm_etm_event);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    esp_etm_channel_config_t etm_chan_cfg = {
-        .flags = {
-            .allow_pd = 0,
-        },
-    };
-    err = esp_etm_new_channel(&etm_chan_cfg, &s_etm_chan);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = esm_drv_adc_etm_new_start_task(&s_adc_etm_task);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    err = esp_etm_channel_connect(s_etm_chan, s_mcpwm_etm_event, s_adc_etm_task);
-    if (err != ESP_OK) {
-        return err;
-    }
-    err = esp_etm_channel_enable(s_etm_chan);
-    if (err != ESP_OK) {
-        return err;
-    }
-
-    s_etm_trigger_ready = true;
+    current->raw_ia = s_latest_raw_ia;
+    current->raw_ib = s_latest_raw_ib;
+    current->raw_ic = 0U;
+    s_latest_sample_valid = false;
     return ESP_OK;
-#else
-    return ESP_ERR_NOT_SUPPORTED;
-#endif
+}
+
+
+esp_err_t esm_drv_analog_read_slow_raw(esm_drv_analog_slow_channel_id_t slow_channel_id, uint16_t *raw)//阻塞式oneshot读取，C5不用,占位
+{
+    (void)slow_channel_id;
+    (void)raw;
+    return ESP_OK;
 }

@@ -1,11 +1,9 @@
 #include "bsp/encoder/bsp_encoder.h"
 
 #include "bsp/board/board.h"
-#include "bsp/bsp_interface.h"
-#include "bsp/spi_encoder/bsp_spi_encoder.h"
+#include "driver/spi/driver_spi.h"
 #include "esp_log.h"
 
-#define ESM_BSP_ENCODER_INSTANCE  0
 #define ESM_BSP_ENCODER_TWO_PI    6.28318530718f
 #define ESM_BSP_ENCODER_REG_ANGLE 0x3FFFU
 
@@ -41,34 +39,21 @@ static bool esm_bsp_encoder_even_parity_ok(uint16_t frame)
     return ((ones & 1U) == 0U);
 }
 
-static bsp_status_t esm_bsp_encoder_init_ops(const esm_bsp_encoder_cfg_t *cfg)
-{
-    static const esm_bsp_encoder_ops_t ops = {
-        .init = NULL,
-        .read_angle_rad = esm_bsp_encoder_read_angle_rad,
-        .set_zero_offset_rad = esm_bsp_encoder_set_zero_offset_rad,
-    };
-
-    if (cfg == NULL) {
-        return BSP_ERR_INVALID_ARG;
-    }
-    if (esm_bsp_spi_encoder_init(cfg) != BSP_OK) {
-        return BSP_ERR_FAIL;
-    }
-    if (esm_bsp_encoder_register(ESM_BSP_ENCODER_INSTANCE, &ops, cfg) != BSP_OK) {
-        return BSP_ERR_FAIL;
-    }
-    return BSP_OK;
-}
-
 esp_err_t esm_bsp_encoder_init(void)
 {
-    const esm_bsp_encoder_cfg_t *cfg = esm_bsp_board_get_encoder_cfg(ESM_BSP_ENCODER_INSTANCE);
+    const esm_bsp_encoder_cfg_t *cfg = esm_bsp_board_get_encoder_cfg();
 
     if (cfg == NULL) {
         return ESP_ERR_NOT_FOUND;
     }
-    if (esm_bsp_encoder_init_ops(cfg) != BSP_OK) {
+
+    if (esm_drv_spi_init(cfg->spi_host,
+                         cfg->mosi_pin,
+                         cfg->miso_pin,
+                         cfg->sclk_pin,
+                         cfg->cs_pin,
+                         cfg->clock_hz,
+                         cfg->spi_mode) != ESP_OK) {
         return ESP_FAIL;
     }
 
@@ -95,13 +80,13 @@ esp_err_t esm_bsp_encoder_read_angle_rad(float *angle_rad)
         ESP_LOGI(TAG, "read_angle begin");
     }
 
-    if (esm_bsp_spi_encoder_xfer16(cmd_read_angle, &resp) != BSP_OK) {
+    if (esm_drv_spi_xfer16(cmd_read_angle, &resp) != ESP_OK) {
         if (s_verbose) {
             ESP_LOGE(TAG, "read_angle read-cmd xfer failed");
         }
         return ESP_FAIL;
     }
-    if (esm_bsp_spi_encoder_xfer16(cmd_nop, &resp) != BSP_OK) {
+    if (esm_drv_spi_xfer16(cmd_nop, &resp) != ESP_OK) {
         if (s_verbose) {
             ESP_LOGE(TAG, "read_angle nop xfer failed");
         }
