@@ -18,7 +18,10 @@
     1.experimentally measured its spi mode is 3,it works well in 10Mhz when and only when use mode3.
     2.based on previous point,it angle_read are very precise,but it err bit regularly return 1.
     3.with the first two items,the encoder read will fail since err bit verifying.
-## V2.1 (2026-05-27)
+## V2.1 (2026-05-29)
 - v2.0's encoder's return is invalid but "right"，this version I delete some verifying,and fixed spi mode to mode3 to let encoder work preferencially.
 - we use mcpwm's etm task to trigger ADC convertion with LL install of HAL(idf don't support).the auto trigger totally unable to work.I decide to create a branch
  text other menthods. 
+## V2.2(2026-05-30)
+ - this version a Conservative design to sample current.requiring adc DMA mode working in high speed,
+ read  result in mcpwm isr_callback.

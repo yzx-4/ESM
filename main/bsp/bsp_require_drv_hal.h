@@ -47,39 +47,3 @@ esp_err_t esm_drv_mcpwm_register_adc_center_trigger_callback(esm_drv_mcpwm_adc_t
 void esm_drv_mcpwm_get_isr_stats(esm_drv_mcpwm_isr_stats_t *stats);
 void esm_drv_mcpwm_reset_isr_stats(void);
 esp_err_t esm_drv_mcpwm_get_comparator_handle(uint8_t phase, mcpwm_cmpr_handle_t *out_cmpr);
-
-/* Current sensor (analog) driver contract */
-typedef struct {
-    uint8_t fast_phase_index[3];
-    uint8_t fast_adc_unit[3];
-    uint8_t fast_adc_channel[3];
-    uint8_t etm_trigger_phase;
-    uint8_t slow_adc_unit[4];
-    uint8_t slow_adc_channel[4];
-    uint8_t slow_channel_count;
-    float bus_v_valid_min;
-    float bus_v_valid_max;
-    float bus_v_default;
-} esm_drv_current_cfg_t;
-
-typedef void (*esm_drv_analog_conv_cb_t)(void *user_ctx);
-
-/* Driver-visible current sample type (driver-side copy to avoid circular includes) */
-typedef struct {
-    uint16_t raw_ia;
-    uint16_t raw_ib;
-    uint16_t raw_ic;
-} esm_drv_phase_current_t;
-
-typedef enum {
-    ESM_DRV_ANALOG_SLOW_CH_BUS_V = 0,
-    ESM_DRV_ANALOG_SLOW_CH_NTC = 1,
-    ESM_DRV_ANALOG_SLOW_CH_RESERVED0 = 2,
-    ESM_DRV_ANALOG_SLOW_CH_RESERVED1 = 3,
-} esm_drv_analog_slow_channel_id_t;
-
-esp_err_t esm_drv_analog_init(const esm_drv_current_cfg_t *cfg);
-esp_err_t esm_drv_analog_read_latest_sample(esm_drv_phase_current_t *current,
-                                            uint32_t *conv_done_delta,
-                                            uint32_t *conv_done_total);
-esp_err_t esm_drv_analog_read_slow_raw(esm_drv_analog_slow_channel_id_t slow_channel_id, uint16_t *raw);
