@@ -32,13 +32,15 @@ esp_err_t esm_bsp_current_sense_init(void)
     return esm_drv_analog_init(&dcfg);
 }
 
-esp_err_t esm_bsp_current_sense_read_latest_sample(esm_bsp_phase_current_t *current)
+esp_err_t esm_bsp_current_sense_read_latest_sample(esm_bsp_phase_current_t *current,
+                                                   uint32_t *conv_done_delta,
+                                                   uint32_t *conv_done_total)
 {
     if (current == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
     esm_drv_phase_current_t drv_cur;
-    esp_err_t err = esm_drv_analog_read_latest_sample(&drv_cur);
+    esp_err_t err = esm_drv_analog_read_latest_sample(&drv_cur, conv_done_delta, conv_done_total);
     if (err != ESP_OK) {
         return err;
     }

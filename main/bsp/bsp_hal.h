@@ -35,10 +35,12 @@ typedef struct {
     uint16_t raw_ia;
     uint16_t raw_ib;
     uint16_t raw_ic;
-} esm_bsp_phase_current_t;
+} esm_bsp_phase_current_t;//闭环计算采用原始数据，不转成电流（float）
 
 esp_err_t esm_bsp_current_sense_init(void);
-esp_err_t esm_bsp_current_sense_read_latest_sample(esm_bsp_phase_current_t *current);
+esp_err_t esm_bsp_current_sense_read_latest_sample(esm_bsp_phase_current_t *current,
+                                                   uint32_t *conv_done_delta,
+                                                   uint32_t *conv_done_total);//只是读取，采样转换由硬件完成
 esp_err_t esm_bsp_current_sense_read_slow_raw(esm_bsp_analog_slow_channel_id_t slow_channel_id, uint16_t *raw);
 
 typedef struct {

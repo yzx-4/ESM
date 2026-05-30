@@ -13,12 +13,12 @@
 #define ESM_MONITOR_TWO_PI              6.28318530718f
 
 #define ESM_MONITOR_PHASE_DUTY_U        0.30f
-#define ESM_MONITOR_PHASE_DUTY_V        0.10f
-#define ESM_MONITOR_PHASE_DUTY_W        0.50f
+#define ESM_MONITOR_PHASE_DUTY_V        0.50f
+#define ESM_MONITOR_PHASE_DUTY_W        0.80f
 
-#define ESM_MONITOR_VECTOR_MODULATION   0.01f
-#define ESM_MONITOR_VECTOR_ELEC_HZ      1.0f
-#define ESM_MONITOR_VECTOR_STEP_MS      2U
+#define ESM_MONITOR_VECTOR_MODULATION   0.8f
+#define ESM_MONITOR_VECTOR_ELEC_HZ      0.1f
+#define ESM_MONITOR_VECTOR_STEP_MS      10U
 #define ESM_MONITOR_VECTOR_LOG_MS       1000U
 
 static const char *TAG = "task_monitor";
@@ -92,8 +92,8 @@ static void esm_monitor_run_phase_duty_test(void)
 #if ESM_MONITOR_TEST_MODE == ESM_MONITOR_TEST_MODE_OPEN_LOOP_VECTOR
 static void esm_monitor_run_open_loop_vector_continuous(void)
 {
-    const float dt_s = (float)ESM_MONITOR_VECTOR_STEP_MS / 1000.0f;
-    const float omega_e = ESM_MONITOR_TWO_PI * ESM_MONITOR_VECTOR_ELEC_HZ;
+    const float dt_s = (float)ESM_MONITOR_VECTOR_STEP_MS / 1000.0f;//根据定义的步长时间计算出每次更新的时间间隔，以秒为单位，供后续计算使用
+    const float omega_e = ESM_MONITOR_TWO_PI * ESM_MONITOR_VECTOR_ELEC_HZ;//根据定义的电角频率计算出每秒钟电角度的变化量，以弧度每秒为单位，供后续计算使用
     float theta_e = 0.0f;
     float prev_mech = 0.0f;
     float accum_mech = 0.0f;
@@ -122,16 +122,22 @@ static void esm_monitor_run_open_loop_vector_continuous(void)
         (void)esm_bsp_pwm_set_duty(1, esm_monitor_clamp01(dv));
         (void)esm_bsp_pwm_set_duty(2, esm_monitor_clamp01(dw));
 
-        if (esm_bsp_encoder_read_angle_rad(&mech) == ESP_OK) {
-            if (!have_prev) {
-                prev_mech = mech;
-                have_prev = true;
-            } else {
-                float delta = esm_monitor_wrap_pm_pi(mech - prev_mech);
-                accum_mech += fabsf(delta);
-                prev_mech = mech;
-            }
-        }
+        // ESP_LOGI(TAG, "open-loop vector duty: U=%.3f V=%.3f W=%.3f",
+        //          (double)esm_monitor_clamp01(du),
+        //          (double)esm_monitor_clamp01(dv),
+        //          (double)esm_monitor_clamp01(dw));
+/*现在的旋转矢量并不输出，先去掉不必的操作*/
+/*怪了，真的是编码器导致的任务卡死，注释之后好了*/
+        // if (esm_bsp_encoder_read_angle_rad(&mech) == ESP_OK) {
+        //     if (!have_prev) {
+        //         prev_mech = mech;
+        //         have_prev = true;
+        //     } else {
+        //         float delta = esm_monitor_wrap_pm_pi(mech - prev_mech);
+        //         accum_mech += fabsf(delta);
+        //         prev_mech = mech;
+        //     }
+        // }
 
         vTaskDelay(pdMS_TO_TICKS(ESM_MONITOR_VECTOR_STEP_MS));
 

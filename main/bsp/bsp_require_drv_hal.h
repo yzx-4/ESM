@@ -10,9 +10,6 @@
 
 /* Use ESP-IDF MCPWM types for comparator handle etc. */
 #include "driver/mcpwm_types.h"
-/* Expose BSP-visible types used by driver contracts */
-#include "bsp/bsp_hal.h"
-
 /* Driver-visible MCPWM config (driver contract). BSP provides its own
  * `esm_bsp_pwm_cfg_t` in bsp_hal.h; here we define the driver-side config
  * that the driver implementation expects. BSP converts its config to this
@@ -82,5 +79,7 @@ typedef enum {
 } esm_drv_analog_slow_channel_id_t;
 
 esp_err_t esm_drv_analog_init(const esm_drv_current_cfg_t *cfg);
-esp_err_t esm_drv_analog_read_latest_sample(esm_drv_phase_current_t *current);
+esp_err_t esm_drv_analog_read_latest_sample(esm_drv_phase_current_t *current,
+                                            uint32_t *conv_done_delta,
+                                            uint32_t *conv_done_total);
 esp_err_t esm_drv_analog_read_slow_raw(esm_drv_analog_slow_channel_id_t slow_channel_id, uint16_t *raw);

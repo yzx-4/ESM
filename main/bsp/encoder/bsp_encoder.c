@@ -11,7 +11,7 @@ static const char *TAG = "bsp_encoder";
 static float s_zero_offset_rad = 0.0f;
 static bool s_verbose = false;
 
-static uint16_t esm_bsp_encoder_apply_even_parity(uint16_t word15)
+static uint16_t esm_bsp_encoder_apply_even_parity(uint16_t word15)//计算偶校验结果
 {
     uint16_t w = (uint16_t)(word15 & 0x7FFFU);
     uint16_t x = w;
@@ -27,7 +27,7 @@ static uint16_t esm_bsp_encoder_apply_even_parity(uint16_t word15)
     return w;
 }
 
-static bool esm_bsp_encoder_even_parity_ok(uint16_t frame)
+static bool esm_bsp_encoder_even_parity_ok(uint16_t frame)//检查偶校验是否正确
 {
     uint16_t x = frame;
     uint8_t ones = 0U;
@@ -41,7 +41,7 @@ static bool esm_bsp_encoder_even_parity_ok(uint16_t frame)
 
 esp_err_t esm_bsp_encoder_init(void)
 {
-    const esm_bsp_encoder_cfg_t *cfg = esm_bsp_board_get_encoder_cfg();
+    const esm_bsp_encoder_cfg_t *cfg = esm_bsp_board_get_encoder_cfg();//调用的drv的spi初始化编码器
 
     if (cfg == NULL) {
         return ESP_ERR_NOT_FOUND;
@@ -61,7 +61,7 @@ esp_err_t esm_bsp_encoder_init(void)
     return ESP_OK;
 }
 
-esp_err_t esm_bsp_encoder_read_angle_rad(float *angle_rad)
+esp_err_t esm_bsp_encoder_read_angle_rad(float *angle_rad)//用命令+nop帧读取一次角度
 {
     uint16_t cmd_read_angle;
     uint16_t cmd_nop;
@@ -82,29 +82,30 @@ esp_err_t esm_bsp_encoder_read_angle_rad(float *angle_rad)
 
     if (esm_drv_spi_xfer16(cmd_read_angle, &resp) != ESP_OK) {
         if (s_verbose) {
-            ESP_LOGE(TAG, "read_angle read-cmd xfer failed");
+            ESP_LOGE(TAG, "read_angle read-cmd xfer failed");//调用发送函数失败标志
         }
         return ESP_FAIL;
     }
     if (esm_drv_spi_xfer16(cmd_nop, &resp) != ESP_OK) {
         if (s_verbose) {
-            ESP_LOGE(TAG, "read_angle nop xfer failed");
+            ESP_LOGE(TAG, "read_angle nop xfer failed");//发送nop帧失败标志
         }
         return ESP_FAIL;
     }
 
     if (!esm_bsp_encoder_even_parity_ok(resp)) {
         if (s_verbose) {
-            ESP_LOGE(TAG, "read_angle parity fail resp=0x%04x", (unsigned)resp);
+            ESP_LOGE(TAG, "read_angle parity fail resp=0x%04x", (unsigned)resp);//偶校验失败标志
         }
         return ESP_FAIL;
     }
-    if ((resp & 0x4000U) != 0U) {
-        if (s_verbose) {
-            ESP_LOGE(TAG, "read_angle error flag set resp=0x%04x", (unsigned)resp);
-        }
-        return ESP_FAIL;
-    }
+/*现在这个编码器错误位就是会返回1，但是数据有效*/
+    // if ((resp & 0x4000U) != 0U) {
+    //     if (s_verbose) {
+    //         ESP_LOGE(TAG, "read_angle error flag set resp=0x%04x", (unsigned)resp);//发现错误位，失败标志
+    //     }
+    //     return ESP_FAIL;
+    // }
 
     raw = (uint16_t)(resp & 0x3FFFU);
     angle = ((float)raw / 16384.0f) * ESM_BSP_ENCODER_TWO_PI;

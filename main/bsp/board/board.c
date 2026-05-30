@@ -7,7 +7,7 @@
 /*pwm参数，引脚*/
 static const esm_bsp_pwm_cfg_t s_pwm_cfg = {
     .timer_num = 0,
-    .freq_hz = 10000,
+    .freq_hz = 40000,
     .phase_u_high_pin = 27,
     .phase_u_low_pin = 23,
     .phase_v_high_pin = 4,
@@ -32,7 +32,7 @@ static const esm_bsp_encoder_cfg_t s_encoder_cfg = {
     .sclk_pin = 9,
     .cs_pin = 10,
     .clock_hz = 1000000,
-    .spi_mode = 3,//工程实测as5047用mode3，可以读到10M，就是唯一正确的模式！！！
+    .spi_mode = 3,       //工程实测as5047用mode3，可以读到10M，就是唯一正确的模式！！！
 };
 
 static const struct {

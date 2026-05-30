@@ -53,7 +53,7 @@ static float esm_pi_run(esm_pi_ctrl_t *pi, float ref, float meas, float dt_s)//�
     }
     return out_sat;
 }
-
+/*初始化电流环pid参数赋值*/
 esp_err_t esm_algo_current_loop_init(void)
 {
     const esm_foc_config_t *cfg = esm_cfg_foc_get();

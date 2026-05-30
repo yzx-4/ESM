@@ -27,12 +27,13 @@ static esm_foc_config_t s_foc_cfg = {
         .iq_ref_a = 0.01f,
     },
     .control = {
-        .pwm_hz = 10000,
+        .pwm_hz = 40000,
         .current_loop_hz = 10000,
+        .current_loop_notify_divider = 4,
         .speed_loop_hz = 1000,
         .position_loop_hz = 100,
         .external_deadtime_ns = 250,
-        .software_deadtime_ns = 0,
+        .software_deadtime_ns = 0,     //本项目由外部硬件死区250ns，软件死区设置为0
         .max_modulation = 0.9f,
     },
 };
